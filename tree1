@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Icy Christmas Dream - Mystery Gifts</title>
+    
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #020205; }
+        #root { width: 100%; height: 100%; }
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #aaddff; font-family: 'Arial', sans-serif; font-size: 20px; letter-spacing: 2px;
+            text-shadow: 0 0 10px #00ffff; pointer-events: none;
+        }
+    </style>
+
+    <!-- Dependencies (UMD/Global) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+</head>
+<body>
+
+    <div id="loader">Summoning Winter Magic...</div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const React = window.React;
+        const ReactDOM = window.ReactDOM;
+        const THREE = window.THREE;
+
+        const App = () => {
+            const mountRef = React.useRef(null);
+
+            React.useEffect(() => {
+                // --- SCENE SETUP ---
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                
+                const scene = new THREE.Scene();
+                // Deep dark blue fog for dreamy depth
+                scene.fog = new THREE.FogExp2(0x02020a, 0.008); 
+
+                const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+                camera.position.set(0, 12, 35); 
+                camera.lookAt(0, 10, 0);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                // Enable shadow map for slight realism on boxes
+                renderer.shadowMap.enabled = true;
+                mountRef.current.appendChild(renderer.domElement);
+
+                // --- LIGHTING ---
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+                scene.add(ambientLight);
+
+                const dirLight = new THREE.DirectionalLight(0xaaddff, 0.8);
+                dirLight.position.set(10, 20, 10);
+                scene.add(dirLight);
+
+                const pointLight = new THREE.PointLight(0x00ffff, 1, 50);
+                pointLight.position.set(0, 15, 10);
+                scene.add(pointLight);
+
+                // --- TEXTURE HELPERS ---
+                
+                // 1. Sparkle Particle (Soft Glow)
+                const createSparkleTexture = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64; canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+                    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                    grad.addColorStop(0.2, 'rgba(220, 240, 255, 0.8)');
+                    grad.addColorStop(0.5, 'rgba(100, 200, 255, 0.2)');
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, 64, 64);
+                    return new THREE.CanvasTexture(canvas);
+                };
+
+                // 2. Star Topper Texture (Bright Cross/flare)
+                const createStarTexture = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 128; canvas.height = 128;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Glow
+                    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+                    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+                    grad.addColorStop(0.4, 'rgba(255, 255, 200, 0.5)');
+                    grad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0,0,128,128);
+                    
+                    // Spikes
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = "white";
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(10, 64); ctx.lineTo(118, 64);
+                    ctx.moveTo(64, 10); ctx.lineTo(64, 118);
+                    ctx.stroke();
+
+                    return new THREE.CanvasTexture(canvas);
+                };
+
+                // 3. Dynamic Text Texture (High Res for Chinese)
+                const createTextTexture = (lines, colorStr) => {
+                    const canvas = document.createElement('canvas');
+                    // Large canvas to prevent clipping
+                    canvas.width = 1024; 
+                    canvas.height = 512;
+                    const ctx = canvas.getContext('2d');
+                    
+                    ctx.clearRect(0,0, 1024, 512);
+                    
+                    // Settings
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    
+                    // Shadow/Glow for readability
+                    ctx.shadowColor = "rgba(0,0,0,0.9)";
+                    ctx.shadowBlur = 8;
+                    ctx.shadowOffsetX = 2;
+                    ctx.shadowOffsetY = 2;
+
+                    ctx.fillStyle = colorStr;
+                    
+                    // Line 1: Main Message (e.g. Happy Birthday)
+                    ctx.font = "bold 70px 'Microsoft YaHei', sans-serif";
+                    ctx.fillText(lines[0], 512, 200);
+
+                    // Line 2: Prize (e.g. 1st Prize)
+                    if(lines[1]) {
+                        ctx.font = "bold 90px 'Microsoft YaHei', sans-serif";
+                        ctx.fillText(lines[1], 512, 320);
+                    }
+                    
+                    const tex = new THREE.CanvasTexture(canvas);
+                    tex.needsUpdate = true;
+                    return tex;
+                };
+
+                // --- OBJECT GENERATION ---
+
+                // 1. The Icy Particle Tree
+                const treeGroup = new THREE.Group();
+                scene.add(treeGroup);
+
+                const particleCount = 3000;
+                const geom = new THREE.BufferGeometry();
+                const pos = [];
+                const cols = [];
+                const colorObj = new THREE.Color();
+
+                const treeHeight = 25;
+                const baseRadius = 10;
+
+                for(let i=0; i<particleCount; i++){
+                    // Cone distribution
+                    const y = (i / particleCount) * treeHeight; // 0 to 25
+                    const progress = y / treeHeight;
+                    const radius = baseRadius * (1 - progress) + 0.5; // Taper to top
+
+                    const angle = Math.random() * Math.PI * 2 * 15 + y; // Spirals
+                    
+                    // Add thickness to the "shell" of the tree
+                    const rVar = radius + (Math.random() - 0.5) * 1.5; 
+
+                    const x = Math.cos(angle) * rVar;
+                    const z = Math.sin(angle) * rVar;
+                    
+                    pos.push(x, y, z);
+
+                    // Colors: White -> Silver -> Ice Blue
+                    if (Math.random() > 0.7) {
+                        colorObj.setHex(0xffffff); // Sparkle white
+                    } else {
+                        colorObj.setHex(0xaaddff); // Ice blue
+                    }
+                    cols.push(colorObj.r, colorObj.g, colorObj.b);
+                }
+                
+                geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+                geom.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+
+                const pMat = new THREE.PointsMaterial({
+                    size: 0.5,
+                    map: createSparkleTexture(),
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+
+                const treeParticles = new THREE.Points(geom, pMat);
+                treeGroup.add(treeParticles);
+
+                // 2. Star Topper
+                const topperMat = new THREE.SpriteMaterial({ 
+                    map: createStarTexture(), 
+                    transparent: true,
+                    blending: THREE.AdditiveBlending 
+                });
+                const topper = new THREE.Sprite(topperMat);
+                topper.position.set(0, treeHeight, 0);
+                topper.scale.set(6, 6, 1);
+                treeGroup.add(topper);
+
+                // 3. Hanging Gifts (Ornaments)
+                const boxes = []; // Array for raycasting
+                const giftGroup = new THREE.Group();
+                treeGroup.add(giftGroup); // Rotate with tree
+
+                // Outcomes Logic
+                const prizes = [
+                    "一等奖", "二等奖", "三等奖", "四等奖", "五等奖", "六等奖"
+                ];
+                // 6 Winners, 6 Losers
+                let outcomes = [];
+                prizes.forEach(p => outcomes.push({ type: 'win', text: p }));
+                for(let k=0; k<6; k++) outcomes.push({ type: 'lose', text: "再接再厉" });
+                
+                // Shuffle
+                outcomes.sort(() => Math.random() - 0.5);
+
+                // Materials for Gifts
+                const giftColors = [0xff5555, 0x5555ff, 0xddaa00, 0x22aa55, 0xff00ff, 0x00ffff];
+                const ribbonMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 });
+
+                // Function to build a single wrapped gift
+                const createGiftMesh = (colorHex) => {
+                    const group = new THREE.Group();
+                    
+                    // Box
+                    const boxGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+                    const boxMat = new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.3, metalness: 0.4 });
+                    const mesh = new THREE.Mesh(boxGeo, boxMat);
+                    group.add(mesh);
+
+                    // Ribbon (Cross)
+                    const ribGeoV = new THREE.BoxGeometry(0.3, 1.55, 1.55);
+                    const ribGeoH = new THREE.BoxGeometry(1.55, 1.55, 0.3);
+                    const r1 = new THREE.Mesh(ribGeoV, ribbonMat);
+                    const r2 = new THREE.Mesh(ribGeoH, ribbonMat);
+                    group.add(r1);
+                    group.add(r2);
+
+                    // Bow (Simple spheres on top)
+                    const bowGeo = new THREE.SphereGeometry(0.3, 8, 8);
+                    const b1 = new THREE.Mesh(bowGeo, ribbonMat);
+                    b1.position.set(-0.3, 0.8, 0);
+                    const b2 = new THREE.Mesh(bowGeo, ribbonMat);
+                    b2.position.set(0.3, 0.8, 0);
+                    group.add(b1); group.add(b2);
+
+                    return { group, mesh }; // Return group for scene, mesh for raycasting
+                };
+
+                for (let i = 0; i < 12; i++) {
+                    const color = giftColors[i % giftColors.length];
+                    const { group, mesh } = createGiftMesh(color);
+
+                    // Position randomly ON the tree cone surface
+                    // H = 25, BaseR = 10
+                    // Avoid very top and very bottom
+                    const h = 3 + Math.random() * 15; // Height between 3 and 18
+                    const rAtH = baseRadius * (1 - h/25);
+                    const angle = (i / 12) * Math.PI * 2 + (Math.random()*0.5);
+                    
+                    const x = Math.cos(angle) * (rAtH + 0.5); // Push out slightly
+                    const z = Math.sin(angle) * (rAtH + 0.5);
+
+                    group.position.set(x, h, z);
+                    
+                    // Rotate to face somewhat outwards
+                    group.lookAt(0, h, 0);
+                    group.rotateY(Math.PI); // Face out
+                    
+                    // Attach Logic data
+                    mesh.userData = {
+                        id: i,
+                        data: outcomes[i],
+                        opened: false,
+                        parentGroup: group
+                    };
+
+                    giftGroup.add(group);
+                    boxes.push(mesh); // Raycast against the inner box mesh
+                }
+
+                // 4. Delicate Shooting Stars (Meteors)
+                const meteorGroup = new THREE.Group();
+                scene.add(meteorGroup);
+                
+                // Create a "Tail" texture
+                const createTailTexture = () => {
+                    const cvs = document.createElement('canvas');
+                    cvs.width = 128; cvs.height = 32;
+                    const cx = cvs.getContext('2d');
+                    const grd = cx.createLinearGradient(0,0,128,0);
+                    grd.addColorStop(0, 'rgba(255,255,255,0)');
+                    grd.addColorStop(1, 'rgba(255,255,255,0.8)');
+                    cx.fillStyle = grd;
+                    cx.fillRect(0,0,128,32);
+                    return new THREE.CanvasTexture(cvs);
+                };
+
+                const tailMat = new THREE.SpriteMaterial({ 
+                    map: createTailTexture(), 
+                    transparent: true, opacity: 0.6,
+                    blending: THREE.AdditiveBlending 
+                });
+
+                const meteors = [];
+                for(let i=0; i<6; i++) {
+                    const sprite = new THREE.Sprite(tailMat);
+                    sprite.scale.set(8, 0.2, 1); // Long and thin
+                    meteorGroup.add(sprite);
+                    
+                    meteors.push({
+                        mesh: sprite,
+                        speed: 0.8 + Math.random() * 0.5,
+                        angle: Math.PI / 4 // 45 degree fall
+                    });
+                    
+                    // Init position
+                    sprite.position.set(100, 100, 100); // Hide initially
+                }
+
+
+                // --- INTERACTION LOGIC ---
+                const raycaster = new THREE.Raycaster();
+                const mouse = new THREE.Vector2();
+
+                const onMouseDown = (event) => {
+                    mouse.x = (event.clientX / width) * 2 - 1;
+                    mouse.y = -(event.clientY / height) * 2 + 1;
+
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(boxes);
+
+                    if(intersects.length > 0) {
+                        const hitObj = intersects[0].object;
+                        const uData = hitObj.userData;
+
+                        if(!uData.opened) {
+                            uData.opened = true;
+
+                            // 1. Pop Animation
+                            const pGroup = uData.parentGroup;
+                            pGroup.scale.set(1.5, 1.5, 1.5); // Instant pop
+
+                            // 2. Color Change to "Opened" state (Gold)
+                            hitObj.material.color.setHex(0xffd700);
+                            hitObj.material.emissive.setHex(0x553300);
+
+                            // 3. Generate 3D Text
+                            const isWin = uData.data.type === 'win';
+                            
+                            // Text Lines
+                            const line1 = "生日快乐！";
+                            const line2 = uData.data.text; // "一等奖" or "再接再厉"
+                            const color = isWin ? "#ffdd00" : "#cccccc";
+                            
+                            const textMap = createTextTexture([line1, line2], color);
+                            const textMat = new THREE.SpriteMaterial({ map: textMap, transparent: true, depthTest: false }); 
+                            // depthTest false ensures text is always on top of tree particles
+                            
+                            const sprite = new THREE.Sprite(textMat);
+                            
+                            // Scale sprite based on aspect ratio of canvas (2:1)
+                            sprite.scale.set(12, 6, 1); 
+                            
+                            // Place above gift (convert local to world if needed, but here simple offset works)
+                            // We attach sprite to the scene, not the rotating tree, so it stays readable?
+                            // Actually, let's attach to scene and copy position to keep it upright.
+                            const worldPos = new THREE.Vector3();
+                            hitObj.getWorldPosition(worldPos);
+                            
+                            sprite.position.copy(worldPos);
+                            sprite.position.y += 2.5; 
+                            
+                            scene.add(sprite);
+
+                            // Add to update loop for floating effect
+                            hitObj.userData.sprite = sprite;
+                            hitObj.userData.baseY = sprite.position.y;
+                            hitObj.userData.floatTime = 0;
+                        }
+                    }
+                };
+
+                // --- CONTROLS (Zoom Only) ---
+                const onWheel = (event) => {
+                    const zoomSpeed = 0.08;
+                    // Clamp Zoom between 20 and 60
+                    const newZ = Math.max(20, Math.min(camera.position.z + event.deltaY * zoomSpeed, 60));
+                    camera.position.z = newZ;
+                };
+
+                window.addEventListener('pointerdown', onMouseDown);
+                window.addEventListener('wheel', onWheel);
+
+                // --- ANIMATION ---
+                const clock = new THREE.Clock();
+
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    const dt = clock.getDelta();
+                    const time = clock.getElapsedTime();
+
+                    // 1. Rotate Tree slowly
+                    treeGroup.rotation.y = time * 0.1;
+                    
+                    // Star pulse
+                    const pulse = 1 + Math.sin(time * 3) * 0.1;
+                    topper.scale.set(6 * pulse, 6 * pulse, 1);
+
+                    // 2. Meteors
+                    meteors.forEach(m => {
+                        m.mesh.position.x -= m.speed * Math.cos(m.angle);
+                        m.mesh.position.y -= m.speed * Math.sin(m.angle);
+                        
+                        // Respawn
+                        if(m.mesh.position.y < -10 || m.mesh.position.x < -60) {
+                            // Reset to random top-right area
+                            m.mesh.position.x = 20 + Math.random() * 40;
+                            m.mesh.position.y = 30 + Math.random() * 20;
+                            m.mesh.position.z = -20 + Math.random() * 40;
+                        }
+                    });
+
+                    // 3. Floating Text & Opened Boxes
+                    boxes.forEach(box => {
+                        if(box.userData.opened && box.userData.sprite) {
+                            // Float text up and down
+                            box.userData.floatTime += dt;
+                            box.userData.sprite.position.y = box.userData.baseY + Math.sin(box.userData.floatTime * 2) * 0.5;
+                            
+                            // Keep text facing camera (billboard)
+                            // Since it's a Sprite, it does this automatically! 
+                            // But we need to ensure its position updates if the tree rotates?
+                            // Previous logic: Text attached to Scene. Tree rotates. 
+                            // Result: Text stays in world space, Box moves away. 
+                            // Fix: Update text position to follow the rotating box.
+                            
+                            const worldPos = new THREE.Vector3();
+                            box.getWorldPosition(worldPos);
+                            box.userData.sprite.position.x = worldPos.x;
+                            box.userData.sprite.position.z = worldPos.z;
+                            // Keep Y animated independently
+                        }
+                    });
+
+                    renderer.render(scene, camera);
+                };
+
+                animate();
+
+                // Cleanup
+                return () => {
+                    window.removeEventListener('pointerdown', onMouseDown);
+                    window.removeEventListener('wheel', onWheel);
+                    if(mountRef.current) mountRef.current.removeChild(renderer.domElement);
+                };
+            }, []);
+
+            return <div ref={mountRef} style={{width: '100%', height: '100%'}} />;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+        
+        document.getElementById('loader').style.display = 'none';
+    </script>
+</body>
+</html>
